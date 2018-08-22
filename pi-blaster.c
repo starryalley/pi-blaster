@@ -554,19 +554,6 @@ release_pin(int pin)
 {
   if (is_known_pin(pin)){
 	release_pin2gpio(pin);
-	int i;
-	for (i = 0; i < num_channels; i++) {
-		if (known_pins[i] == pin)
-		{
-			int j;
-			for (j = i; j < num_channels - 1; j++) {
-				known_pins[j] = known_pins[j + 1];
-			}
-			known_pins[num_channels] = 0;
-			num_channels--;
-			break;
-		}
-	}
   }else{
 	fprintf(stderr, "GPIO %d is not enabled for pi-blaster\n", pin);
   }
