@@ -479,10 +479,10 @@ set_pin2gpio(int pin, float width){
   for (i = 0; i < num_channels; i++) {
 	if (pin2gpio[i] == pin || pin2gpio[i] == 0) {
 	  if (pin2gpio[i] == 0) {
+		pin2gpio[i] = pin;
 		gpio_set(pin, invert_mode);
 		gpio_set_mode(pin, GPIO_MODE_OUT);
 	  }
-	  pin2gpio[i] = pin;
 	  channel_pwm[i] = width;
 	  established = 1;
 	  break;
@@ -506,6 +506,11 @@ compact_pin2gpio(){
 	  tmp_channel_pwm[j] = channel_pwm[i];
 	  j++;
 	}
+  }
+  // Set the remaining slots in the arrays to 0, to disable them
+  for (i = j; j < num_channels; j++) {
+	tmp_pin2gpio[i] = 0;
+	tmp_channel_pwm[i] = 0;
   }
   for (i = 0; i < num_channels; i++){
 	pin2gpio[i] = tmp_pin2gpio[i];
@@ -537,34 +542,43 @@ release_pin2gpio(int pin)
 }
 
 // Set each provided pin to one in pin2gpio
-static void
+static int
 set_pin(int pin, float width)
 {
+  int established = 0;
+
   if (is_known_pin(pin)){
-	set_pin2gpio(pin, width);
+	established = set_pin2gpio(pin, width);
   }else{
 	fprintf(stderr, "GPIO %d is not enabled for pi-blaster\n", pin);
   }
+
+  return (established);
 }
 
 // Function make sure the pin we want to release is a valid pin, if it is
 // then calls release_pin2gpio to delete it from currently ON pins.
-static void
+static int
 release_pin(int pin)
 {
+  int released = 0;
+
   if (is_known_pin(pin)){
-	release_pin2gpio(pin);
+	released = release_pin2gpio(pin);
   }else{
 	fprintf(stderr, "GPIO %d is not enabled for pi-blaster\n", pin);
   }
+
+  return(released);
 }
 
 // Releases the PWM pin requested (if found and valid) and updates the calls
-// update_pwm to apply the changes to the actual hardware pins.
+// update_pwm to apply the changes to the actual hardware pins if needed.
 static void
 release_pwm(int pin){
-  release_pin(pin);
-  update_pwm();
+  if (release_pin(pin)){
+    update_pwm();
+  }
 }
 
 
@@ -572,8 +586,9 @@ release_pwm(int pin){
 static void
 set_pwm(int channel, float width)
 {
-  set_pin(channel, width);
-  update_pwm();
+  if (set_pin(channel, width)){
+    update_pwm();
+  }
 }
 
 // Run set_pwm on every known pin, setting all of them to the provided width.
