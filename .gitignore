@@ -17,3 +17,6 @@ Makefile.in
 missing
 pi-blaster
 stamp-h1
+
+# IntelliJ Idea
+.idea/

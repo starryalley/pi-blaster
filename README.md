@@ -134,7 +134,7 @@ Examples:
 
     echo "13=1; 17=0.2; 19=0" > /dev/pi-blaster
 
-### NodeJS Library
+### NodeJS
 
 NodeJS users can use [pi-blaster.js](https://github.com/sarfata/pi-blaster.js).
 
@@ -144,6 +144,16 @@ A C# example was contributed by [Vili
 Volcini](https://plus.google.com/109312219443477679717/posts). It is available
 on [this stackoverflow
 thread](http://stackoverflow.com/questions/17241071/writing-to-fifo-file-linux-monoc).
+
+### Java
+```java
+void echoToFile(String str) throws FileNotFoundException {
+    final String file = "/dev/pi-blaster";
+    try (PrintWriter out = new PrintWriter(new FileOutputStream(file), true)) {
+        out.println(str);
+    }
+}
+```
 
 ## How to adjust the frequency and the resolution of the PWM
 
@@ -213,6 +223,15 @@ timings. This might interfere with your sound card output.  There is
 experimental support for a PCM time-source. If you are interested, I suggest you
 look at Richard Hirst original project (ServoBlaster) and try the `--pcm`
 option.
+
+If started as system service (`sudo make install`), logs are written to syslog 
+(*/var/log/syslog* on Debian). Keep this in mind for troubleshooting.
+
+If started as system service, configuration is read from `/etc/default/pi-blaster`.
+You might need to create and edit this file manually. Example of file content:
+```text
+DAEMON_OPTS="--gpio 19,13,5"
+```
 
 ## A practical example: high-power RGB lighting
 
