@@ -49,6 +49,11 @@ systems this can be achieved with:
 
     sudo apt-get install autoconf
 
+Get the git package:
+
+    git clone https://github.com/sarfata/pi-blaster.git
+    cd pi-blaster
+
 Building is extremely simple:
 
     ./autogen.sh
