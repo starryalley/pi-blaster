@@ -127,6 +127,7 @@ static uint8_t pin2gpio[MAX_CHANNELS];
 #define DMA_CHAN_SIZE	  0x100 /* size of register space for a single DMA channel */
 #define DMA_CHAN_MAX    14  /* number of DMA Channels we have... actually, there are 15... but channel fifteen is mapped at a different DMA_BASE, so we leave that one alone */
 #define DMA_CHAN_NUM    14  /* the DMA Channel we are using, NOTE: DMA Ch 0 seems to be used by X... better not use it ;) */
+#define DMA_CHAN_NUM_PI4  7
 #define PWM_BASE_OFFSET 0x0020C000
 #define PWM_BASE        (periph_virt_base + PWM_BASE_OFFSET)
 #define PWM_PHYS_BASE   (periph_phys_base + PWM_BASE_OFFSET)
@@ -204,7 +205,7 @@ S scheme (0=old, 1=new)
 R RAM (0=256, 1=512, 2=1024)
 M manufacturer (0='SONY',1='EGOMAN',2='EMBEST',3='UNKNOWN',4='EMBEST')
 P processor (0=2835, 1=2836)
-T type (0='A', 1='B', 2='A+', 3='B+', 4='Pi 2 B', 5='Alpha', 6='Compute Module')
+T type (0='A', 1='B', 2='A+', 3='B+', 4='Pi 2 B', 5='Alpha', 6='Compute Module', 11='4b')
 V revision (0-15)
 */
 #define BOARD_REVISION_SCHEME_MASK (0x1 << 23)
@@ -232,6 +233,7 @@ V revision (0-15)
 #define BOARD_REVISION_TYPE_PI3_AP (0x7 << 5)
 #define BOARD_REVISION_TYPE_CM (6 << 4)
 #define BOARD_REVISION_TYPE_CM3 (10 << 4)
+#define BOARD_REVISION_TYPE_PI4_B (0x11 << 4)
 #define BOARD_REVISION_REV_MASK (0xF)
 
 #define BUS_TO_PHYS(x) ((x)&~0xC0000000)
@@ -275,6 +277,9 @@ static int invert_mode = 0;
 static int daemonize = 1;
 
 static float channel_pwm[MAX_CHANNELS];
+
+static uint32_t plldfreq_mhz;
+static int dma_chan;
 
 static void set_pwm(int channel, float value);
 static void update_pwm();
@@ -385,6 +390,8 @@ static void get_model(unsigned mbox_board_rev) {
       board_model = 3;
     } else if ((mbox_board_rev & BOARD_REVISION_TYPE_MASK) == BOARD_REVISION_TYPE_CM3) {
       board_model = 3;
+    } else if ((mbox_board_rev & BOARD_REVISION_TYPE_MASK) == BOARD_REVISION_TYPE_PI4_B) {
+      board_model = 4;
     } else {
       // no Pi 2, we assume a Pi 1
       board_model = 1;
@@ -398,12 +405,23 @@ static void get_model(unsigned mbox_board_rev) {
     case 1:
       periph_virt_base = 0x20000000;
       periph_phys_base = 0x7e000000;
+      plldfreq_mhz = 500;
+      dma_chan = DMA_CHAN_NUM;
       mem_flag         = MEM_FLAG_L1_NONALLOCATING | MEM_FLAG_ZERO;
       break;
     case 2:
     case 3:
       periph_virt_base = 0x3f000000;
       periph_phys_base = 0x7e000000;
+      plldfreq_mhz = 500;
+      dma_chan = DMA_CHAN_NUM;
+      mem_flag         = MEM_FLAG_L1_NONALLOCATING | MEM_FLAG_ZERO;
+      break;
+    case 4:
+      periph_virt_base = 0xFE000000;
+      periph_phys_base = 0x7e000000;
+      plldfreq_mhz = 750;
+      dma_chan = DMA_CHAN_NUM_PI4;
       mem_flag         = MEM_FLAG_L1_NONALLOCATING | MEM_FLAG_ZERO;
       break;
     default:
@@ -713,7 +731,7 @@ static void init_hardware(void) {
     udelay(10);
     clk_reg[PWMCLK_CNTL] = 0x5A000006;		// Source=PLLD (500MHz)
     udelay(100);
-    clk_reg[PWMCLK_DIV] = 0x5A000000 | (500<<12);	// set pwm div to 500, giving 1MHz
+    clk_reg[PWMCLK_DIV] = 0x5A000000 | (plldfreq_mhz<<12);	// set pwm div to 500, giving 1MHz
     udelay(100);
     clk_reg[PWMCLK_CNTL] = 0x5A000016;		// Source=PLLD and enable
     udelay(100);
@@ -731,7 +749,7 @@ static void init_hardware(void) {
     udelay(100);
     clk_reg[PCMCLK_CNTL] = 0x5A000006;		// Source=PLLD (500MHz)
     udelay(100);
-    clk_reg[PCMCLK_DIV] = 0x5A000000 | (500<<12);	// Set pcm div to 500, giving 1MHz
+    clk_reg[PCMCLK_DIV] = 0x5A000000 | (plldfreq_mhz<<12);	// Set pcm div to 500, giving 1MHz
     udelay(100);
     clk_reg[PCMCLK_CNTL] = 0x5A000016;		// Source=PLLD and enable
     udelay(100);
@@ -1021,7 +1039,7 @@ int main(int argc, char **argv) {
   printf("MBox Board Revision: %#x\n", mbox_board_rev);
   get_model(mbox_board_rev);
   unsigned mbox_dma_channels = get_dma_channels(mbox.handle);
-  printf("DMA Channels Info: %#x, using DMA Channel: %d\n", mbox_dma_channels, DMA_CHAN_NUM);
+  printf("DMA Channels Info: %#x, using DMA Channel: %d\n", mbox_dma_channels, dma_chan);
 
   printf("Using hardware:                 %5s\n", delay_hw == DELAY_VIA_PWM ? "PWM" : "PCM");
   printf("Number of channels:             %5d\n", (int)num_channels);
@@ -1036,7 +1054,7 @@ int main(int argc, char **argv) {
   /* map the registers for all DMA Channels */
   dma_virt_base = map_peripheral(DMA_BASE, (DMA_CHAN_SIZE * (DMA_CHAN_MAX + 1)));
   /* set dma_reg to point to the DMA Channel we are using */
-  dma_reg = dma_virt_base + DMA_CHAN_NUM * (DMA_CHAN_SIZE / sizeof(dma_reg));
+  dma_reg = dma_virt_base + dma_chan * (DMA_CHAN_SIZE / sizeof(dma_reg));
   pwm_reg = map_peripheral(PWM_BASE, PWM_LEN);
   pcm_reg = map_peripheral(PCM_BASE, PCM_LEN);
   clk_reg = map_peripheral(CLK_BASE, CLK_LEN);
