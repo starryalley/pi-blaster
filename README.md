@@ -257,6 +257,7 @@ about this project on [our blog][blog].
 * penfold42 (https://github.com/penfold42)
 * Thomas McVay (https://github.com/ThomasMcVay)
 * Pavle Petrovic (https://github.com/pavlecc)
+* arendruni (https://github.com/arendruni)
 
 ## Want to support this project?
 
