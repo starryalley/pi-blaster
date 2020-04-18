@@ -111,7 +111,7 @@ static uint8_t pin2gpio[MAX_CHANNELS];
 #define PAGE_SHIFT    12
 
 // CYCLE_TIME_US is the period of the PWM signal in us.
-#define CYCLE_TIME_US	10000
+#define CYCLE_TIME_US	20000
 // SAMPLE_US is the pulse width increment granularity, again in microseconds.
 // Setting SAMPLE_US too low will likely cause problems as the DMA controller
 // will use too much memory bandwidth.  10us is a good value, though you
